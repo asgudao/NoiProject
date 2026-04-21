@@ -14,8 +14,9 @@ public class Information {
     private Integer id;
     private String studentName;
     private String studentNum;
-    private byte[] examFile;
+    private String examFile;
     private String examPassword;
     private String computerIp;
     private String classroomNum;
+    private String examNum;
 }
