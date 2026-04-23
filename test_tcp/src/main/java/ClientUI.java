@@ -53,7 +53,12 @@ public class ClientUI extends JFrame {
 
         // ===== 事件 =====
         connectBtn.addActionListener(e -> connect());
-        sendBtn.addActionListener(e -> sendMsg(input.getText()));
+
+        sendBtn.addActionListener(e -> {
+            sendMsg(input.getText());
+            input.setText("");
+        });
+
         fileBtn.addActionListener(e -> sendFile());
 
         setVisible(true);
@@ -66,14 +71,22 @@ public class ClientUI extends JFrame {
 
             out = new DataOutputStream(socket.getOutputStream());
 
-            msgArea.append("已连接：" + socket.getInetAddress() + "\n");
+            append("已连接：" + socket.getInetAddress());
+
+            // 启动接收线程
+            new Thread(this::receive).start();
 
         } catch (Exception e) {
-            msgArea.append("连接失败\n");
+            append("连接失败");
         }
     }
 
     private void sendMsg(String msg) {
+        if (socket == null || socket.isClosed()) {
+            append("请先连接服务器！");
+            return;
+        }
+
         try {
             byte[] data = msg.getBytes();
 
@@ -82,14 +95,19 @@ public class ClientUI extends JFrame {
             out.write(data);
             out.flush();
 
-            msgArea.append("发送：" + msg + "\n");
+            append("发送：" + msg);
 
         } catch (Exception e) {
-            msgArea.append("发送失败\n");
+            append("发送失败");
         }
     }
 
     private void sendFile() {
+        if (socket == null || socket.isClosed()) {
+            append("请先连接服务器！");
+            return;
+        }
+
         try {
             JFileChooser chooser = new JFileChooser();
 
@@ -97,12 +115,25 @@ public class ClientUI extends JFrame {
 
                 File file = chooser.getSelectedFile();
 
-                byte[] fileData = new FileInputStream(file).readAllBytes();
+                FileInputStream fis = new FileInputStream(file);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+                byte[] buffer = new byte[4096];
+                int len;
+
+                while ((len = fis.read(buffer)) != -1) {
+                    bos.write(buffer, 0, len);
+                }
+
+                byte[] fileData = bos.toByteArray();
                 byte[] nameBytes = file.getName().getBytes();
 
-                int len = 1 + 4 + nameBytes.length + fileData.length;
+                fis.close();
+                bos.close();
 
-                out.writeInt(len);
+                int totalLen = 1 + 4 + nameBytes.length + fileData.length;
+
+                out.writeInt(totalLen);
                 out.writeByte(2);
 
                 out.writeInt(nameBytes.length);
@@ -110,12 +141,61 @@ public class ClientUI extends JFrame {
                 out.write(fileData);
                 out.flush();
 
-                msgArea.append("发送文件：" + file.getName() + "\n");
+                append("发送文件：" + file.getName() + " (" + fileData.length + " bytes)");
             }
 
         } catch (Exception e) {
-            msgArea.append("文件发送失败\n");
+            append("文件发送失败");
         }
+    }
+
+    private void receive() {
+        try {
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+
+            while (true) {
+                int len = in.readInt();
+                byte type = in.readByte();
+
+                // ===== 文本 =====
+                if (type == 1) {
+                    byte[] data = new byte[len - 1];
+                    in.readFully(data);
+
+                    append("收到：" + new String(data));
+                }
+
+                // ===== 文件 =====
+                else if (type == 2) {
+                    int nameLen = in.readInt();
+                    byte[] nameBytes = new byte[nameLen];
+                    in.readFully(nameBytes);
+                    String fileName = new String(nameBytes);
+
+                    int fileLen = len - 1 - 4 - nameLen;
+                    byte[] fileData = new byte[fileLen];
+                    in.readFully(fileData);
+
+                    String newName = "client_" + System.currentTimeMillis() + "_" + fileName;
+
+                    FileOutputStream fos = new FileOutputStream(newName);
+                    fos.write(fileData);
+                    fos.close();
+
+                    append("收到文件：" + newName);
+                }
+            }
+
+        } catch (Exception e) {
+            append("与服务器断开");
+        }
+    }
+
+    private void append(String msg) {
+        SwingUtilities.invokeLater(() -> {
+            msgArea.append(msg + "\n");
+            msgArea.setCaretPosition(msgArea.getDocument().getLength());
+        });
     }
 
     public static void main(String[] args) {
