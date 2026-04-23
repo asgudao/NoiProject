@@ -12,6 +12,8 @@
         <module>noi-server</module>
         <module>noi-service</module>
         <module>noi-client</module>
+        <module>test_tcp</module>
+        <module>test_tcp</module>
     </modules>
     <!--    导入springboot版本和框架依赖  单继承    -->
     <parent>
