@@ -3,8 +3,8 @@ server:
 #配置数据源
 spring:
   datasource:
-  driver-class-name: org.sqlite.JDBC
-  url: jdbc:sqlite:E:\MapleLeaf\school\Course\Computer-Networks\NoiProject\identifier.sqlite
+   driver-class-name: org.sqlite.JDBC
+   url: jdbc:sqlite:E:\MapleLeaf\school\Course\Computer-Networks\NoiProject\identifier.sqlite
   web:
     resources:
       static-locations:

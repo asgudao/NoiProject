@@ -40,7 +40,7 @@ mybatis-plus:
 #配置分页插件
 pagehelper:
   #使用的哪个数据库
-  helperDialect: mysql
+  helperDialect: sqlite
   #页码是否合理化 ， 例如：-1页 查询是第1页  一共4页参数写5页 查询是4页
   reasonable: true
   #是否支持方法参数
