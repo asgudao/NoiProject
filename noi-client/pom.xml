@@ -27,6 +27,11 @@
             <groupId>com.tjetc</groupId>
             <artifactId>noi-service</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.10.1</version>
+        </dependency>
     </dependencies>
 
     <!--添加maven插件，项目的打包工具，打成jar包，否则在打包运行时报错   -->

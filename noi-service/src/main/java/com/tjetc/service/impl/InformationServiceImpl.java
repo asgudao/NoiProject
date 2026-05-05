@@ -20,7 +20,7 @@ public class InformationServiceImpl implements InformationService {
     private InformationMapper informationMapper;
 
     @Override
-    public JsonResult<Information> selectAll() {
+    public JsonResult<List<Information>> selectAll() {
         List<Information> informations = informationMapper.selectList(null);
         return JsonResult.success(informations);
     }
