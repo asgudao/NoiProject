@@ -37,6 +37,9 @@ public class ClientUI extends JFrame {
     private DataInputStream in;
     private Information information;            // 存储服务端返回的考生信息
     private volatile List<String> zipEntries;
+    private DefaultListModel<String> fileListModel;
+    private JList<String> fileList;
+
 
     public ClientUI() {
         setTitle("TCP客户端");
@@ -81,21 +84,37 @@ public class ClientUI extends JFrame {
 
         component.setBackground(Color.white);
         center.setBackground(Color.white);
-        component.setPreferredSize(new Dimension(400, 250));
+        component.setPreferredSize(new Dimension(400, 400));
         center.add(component, BorderLayout.CENTER);
 
         // ===== 消息显示区 =====
         msgArea.setEditable(false);
+        msgArea.setLineWrap(true);                 // 自动换行
+        msgArea.setWrapStyleWord(true);            // 按单词边界换行（中文按字）
         JScrollPane msgScrollPane = new JScrollPane(msgArea);
-        msgScrollPane.setPreferredSize(new Dimension(250, 0)); // 右区宽度 250 像素
+        msgScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER); // 永不显示横向滚动条
+        msgScrollPane.setPreferredSize(new Dimension(450, 0));
 
 
-        // 将考生信息区（center）和消息区（msgScrollPane）水平分割
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, center, msgScrollPane);
-        splitPane.setDividerLocation(500);   // 初始分割位置（左区宽度500，可根据窗口调整）
-        splitPane.setResizeWeight(1.0);      // 调整窗口大小时，左区优先伸缩（0.0则右区优先）
+        // 文件列表区（左侧）
+        fileListModel = new DefaultListModel<>();
+        fileList = new JList<>(fileListModel);
+        JScrollPane fileListScroll = new JScrollPane(fileList);
+        fileListScroll.setPreferredSize(new Dimension(150, 0));   // 左侧宽度150像素
 
-        add(splitPane, BorderLayout.CENTER);   // 分割面板放到中央，取代原来的 center
+        // 内层分割（考生信息区 + 消息区）
+        JSplitPane rightSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, center, msgScrollPane);
+        rightSplit.setDividerLocation(600);         // 中间考生信息区宽度 600（根据你的窗口大小调整）
+        rightSplit.setResizeWeight(1.0);            // 调整窗口时中间区优先变化
+
+        // 外层分割：左侧文件列表，右侧是原来的整体
+        JSplitPane outerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, fileListScroll, rightSplit);
+        outerSplit.setDividerLocation(180);        // 左侧文件列表固定宽度
+        outerSplit.setResizeWeight(0.0);           // 调整窗口时，左侧宽度不变
+
+
+
+        add(outerSplit, BorderLayout.CENTER);
 
         // ===== 底部 =====
         JPanel bottom = new JPanel();
@@ -120,6 +139,7 @@ public class ClientUI extends JFrame {
                     JOptionPane.showMessageDialog(null, "请输入正确格式的身份证号", "错误", JOptionPane.WARNING_MESSAGE);
                 } else if (information != null && idNumber.equals(information.getStudentNum())) {
                     passwordField.setEchoChar((char) 0);
+                    updateFileList(zipEntries);
                 } else if (information == null) {
                     JOptionPane.showMessageDialog(null, "尚未获取到考生信息", "错误", JOptionPane.WARNING_MESSAGE);
                 }
@@ -127,6 +147,15 @@ public class ClientUI extends JFrame {
         });
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setVisible(true);
+    }
+
+    private void updateFileList(List<String> entries) {
+        SwingUtilities.invokeLater(() -> {
+            fileListModel.clear();
+            if (entries != null) {
+                entries.forEach(fileListModel::addElement);
+            }
+        });
     }
 
     private void addFormRow(JPanel panel, GridBagConstraints gbc,
@@ -227,7 +256,7 @@ public class ClientUI extends JFrame {
                         zipEntries = getZipEntries(savePath);
                         if (zipEntries != null && !zipEntries.isEmpty()) {
                             SwingUtilities.invokeLater(() ->
-                                    appendMsg("压缩包内含文件：" + String.join(", ", zipEntries))
+                                    appendMsg("压缩包内含文件")
                             );
                         }
                     }
@@ -298,6 +327,7 @@ public class ClientUI extends JFrame {
         List<String> entries = new ArrayList<>();
         try (ZipFile zipFile = new ZipFile(zipPath)) {
             zipFile.stream().map(ZipEntry::getName).forEach(entries::add);
+            entries.sort(String.CASE_INSENSITIVE_ORDER);
         } catch (IOException e) {
             appendMsg("读取压缩包内容失败：" + e.getMessage());
         }
