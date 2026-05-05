@@ -85,12 +85,12 @@ public class ServerUI extends JFrame {
 
             boolean isFirstMessage = true;
             String clientIp = null;
+            Information matched = null;   // 提升作用域
 
             while (true) {
                 int len = in.readInt();
                 byte type = in.readByte();
 
-                // ===== 文本消息 =====
                 if (type == 1) {
                     byte[] data = new byte[len - 1];
                     in.readFully(data);
@@ -101,7 +101,7 @@ public class ServerUI extends JFrame {
                         isFirstMessage = false;
                         log("客户端 IP 已记录：" + clientIp);
 
-                        Information matched = null;
+                        // 查找匹配的考生
                         for (Information info : informationList) {
                             if (clientIp.equals(info.getComputerIp())) {
                                 matched = info;
@@ -110,12 +110,13 @@ public class ServerUI extends JFrame {
                         }
 
                         if (matched != null) {
-                            // 1. 发送考生信息（不含文件内容）
+                            // 发送考生信息 JSON
                             String infoStr = infoToString(matched);
                             sendToClient(out, infoStr);
                             log("已向 " + clientIp + " 发送考生信息");
 
-                            String examFilePath = matched.getExamFile();  // 现在返回的是路径字符串
+                            // 发送考试文件（如果路径存在）
+                            String examFilePath = matched.getExamFile();
                             if (examFilePath != null && !examFilePath.isEmpty()) {
                                 try {
                                     File file = new File(examFilePath);
@@ -129,8 +130,8 @@ public class ServerUI extends JFrame {
                                 } catch (Exception e) {
                                     log("考试文件发送失败：" + e.getMessage());
                                 }
-                            }}
-                        else {
+                            }
+                        } else {
                             sendToClient(out, "未找到匹配的考生信息");
                             log("未找到 IP " + clientIp + " 对应的考生");
                         }
@@ -138,26 +139,45 @@ public class ServerUI extends JFrame {
                         log("[" + socket.getInetAddress() + "]：" + msg);
                     }
                 }
-
                 // ===== 接收客户端发来的文件 =====
                 else if (type == 2) {
                     int nameLen = in.readInt();
                     byte[] nameBytes = new byte[nameLen];
                     in.readFully(nameBytes);
-                    String fileName = new String(nameBytes, StandardCharsets.UTF_8);
+                    String originalFileName = new String(nameBytes, StandardCharsets.UTF_8);
 
                     int fileLen = len - 1 - 4 - nameLen;
                     byte[] fileData = new byte[fileLen];
                     in.readFully(fileData);
 
-                    String newName = System.currentTimeMillis() + "_" + fileName;
-                    try (FileOutputStream fos = new FileOutputStream(newName)) {
+                    // 构建新文件名
+                    String newFileName;
+                    if (matched != null) {
+                        // 提取原文件扩展名
+                        String ext = "";
+                        int dotIndex = originalFileName.lastIndexOf('.');
+                        if (dotIndex > 0) {
+                            ext = originalFileName.substring(dotIndex); // 包含点
+                        }
+                        newFileName = matched.getStudentName() + "_" + matched.getStudentNum() + ext;
+                    } else {
+                        // 未匹配到考生时回退到时间戳命名
+                        newFileName = System.currentTimeMillis() + "_" + originalFileName;
+                    }
+
+                    // 固定保存目录
+                    String saveDir = "D:" + File.separator + "server" + File.separator + "get";
+                    File dir = new File(saveDir);
+                    if (!dir.exists()) {
+                        dir.mkdirs();
+                    }
+                    String savePath = saveDir + File.separator + newFileName;
+                    try (FileOutputStream fos = new FileOutputStream(savePath)) {
                         fos.write(fileData);
                     }
-                    log("[" + socket.getInetAddress() + "] 收到文件：" + newName);
+                    log("[" + socket.getInetAddress() + "] 收到文件：" + savePath);
                 }
             }
-
         } catch (EOFException e) {
             log("客户端断开：" + socket.getInetAddress());
         } catch (Exception e) {
