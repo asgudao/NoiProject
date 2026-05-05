@@ -10,6 +10,10 @@ import java.awt.event.ActionListener;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class ClientUI extends JFrame {
 
@@ -27,14 +31,16 @@ public class ClientUI extends JFrame {
     private JButton btnLogin = new JButton("登录系统");
     private JButton connectBtn = new JButton("连接");
 
+
     private Socket socket;
     private DataOutputStream out;
     private DataInputStream in;
     private Information information;            // 存储服务端返回的考生信息
+    private volatile List<String> zipEntries;
 
     public ClientUI() {
         setTitle("TCP客户端");
-        setSize(550, 420);
+        setSize(750, 420);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -77,7 +83,19 @@ public class ClientUI extends JFrame {
         center.setBackground(Color.white);
         component.setPreferredSize(new Dimension(400, 250));
         center.add(component, BorderLayout.CENTER);
-        add(center, BorderLayout.CENTER);
+
+        // ===== 消息显示区 =====
+        msgArea.setEditable(false);
+        JScrollPane msgScrollPane = new JScrollPane(msgArea);
+        msgScrollPane.setPreferredSize(new Dimension(250, 0)); // 右区宽度 250 像素
+
+
+        // 将考生信息区（center）和消息区（msgScrollPane）水平分割
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, center, msgScrollPane);
+        splitPane.setDividerLocation(500);   // 初始分割位置（左区宽度500，可根据窗口调整）
+        splitPane.setResizeWeight(1.0);      // 调整窗口大小时，左区优先伸缩（0.0则右区优先）
+
+        add(splitPane, BorderLayout.CENTER);   // 分割面板放到中央，取代原来的 center
 
         // ===== 底部 =====
         JPanel bottom = new JPanel();
@@ -89,9 +107,6 @@ public class ClientUI extends JFrame {
         bottom.add(fileBtn);
         add(bottom, BorderLayout.SOUTH);
 
-        // ===== 消息显示区 =====
-        msgArea.setEditable(false);
-        add(new JScrollPane(msgArea), BorderLayout.EAST);
 
         // ===== 事件 =====
         connectBtn.addActionListener(e -> connect());
@@ -110,7 +125,7 @@ public class ClientUI extends JFrame {
                 }
             }
         });
-
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
         setVisible(true);
     }
 
@@ -208,10 +223,19 @@ public class ClientUI extends JFrame {
                     try (FileOutputStream fos = new FileOutputStream(savePath)) {
                         fos.write(fileData);
                     }
+                    if (fileName.toLowerCase().endsWith(".zip")) {
+                        zipEntries = getZipEntries(savePath);
+                        if (zipEntries != null && !zipEntries.isEmpty()) {
+                            SwingUtilities.invokeLater(() ->
+                                    appendMsg("压缩包内含文件：" + String.join(", ", zipEntries))
+                            );
+                        }
+                    }
                     String finalFileName = fileName;
                     String finalSavePath = savePath;
                     SwingUtilities.invokeLater(() ->
                             appendMsg("收到考试文件：" + finalFileName + "，已保存至 " + finalSavePath));
+                    // 如果是 ZIP 文件，读取内容列表并保存
                 }
             }
         } catch (EOFException e) {
@@ -268,6 +292,16 @@ public class ClientUI extends JFrame {
             msgArea.append(msg + "\n");
             msgArea.setCaretPosition(msgArea.getDocument().getLength());
         });
+    }
+
+    private List<String> getZipEntries(String zipPath) {
+        List<String> entries = new ArrayList<>();
+        try (ZipFile zipFile = new ZipFile(zipPath)) {
+            zipFile.stream().map(ZipEntry::getName).forEach(entries::add);
+        } catch (IOException e) {
+            appendMsg("读取压缩包内容失败：" + e.getMessage());
+        }
+        return entries;
     }
 
     public static void main(String[] args) {
